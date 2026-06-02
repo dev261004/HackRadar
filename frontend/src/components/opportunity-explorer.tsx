@@ -55,6 +55,25 @@ export function OpportunityExplorer({ opportunities }: OpportunityExplorerProps)
   const [query, setQuery] = useState("");
   const [source, setSource] = useState<SourceFilter>("all");
   const [type, setType] = useState<TypeFilter>("all");
+  const [country, setCountry] = useState("all");
+  const [city, setCity] = useState("all");
+
+  const countries = useMemo(() => {
+    return Array.from(
+      new Set(opportunities.map((opportunity) => opportunity.country).filter(Boolean) as string[])
+    ).sort((a, b) => a.localeCompare(b));
+  }, [opportunities]);
+
+  const cities = useMemo(() => {
+    return Array.from(
+      new Set(
+        opportunities
+          .filter((opportunity) => country === "all" || opportunity.country === country)
+          .map((opportunity) => opportunity.city)
+          .filter(Boolean) as string[]
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [opportunities, country]);
 
   const filteredOpportunities = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -62,12 +81,16 @@ export function OpportunityExplorer({ opportunities }: OpportunityExplorerProps)
     return opportunities.filter((opportunity) => {
       const matchesSource = source === "all" || opportunity.source === source;
       const matchesType = type === "all" || opportunity.type === type;
+      const matchesCountry = country === "all" || opportunity.country === country;
+      const matchesCity = city === "all" || opportunity.city === city;
       const matchesQuery =
         normalizedQuery.length === 0 ||
         [
           opportunity.title,
           opportunity.organizer,
           opportunity.location,
+          opportunity.country,
+          opportunity.city,
           opportunity.source,
           opportunity.type,
           ...opportunity.tags
@@ -76,9 +99,9 @@ export function OpportunityExplorer({ opportunities }: OpportunityExplorerProps)
           .toLowerCase()
           .includes(normalizedQuery);
 
-      return matchesSource && matchesType && matchesQuery;
+      return matchesSource && matchesType && matchesCountry && matchesCity && matchesQuery;
     });
-  }, [opportunities, query, source, type]);
+  }, [opportunities, query, source, type, country, city]);
 
   return (
     <section className="explorer" aria-label="Opportunity discovery">
@@ -118,6 +141,38 @@ export function OpportunityExplorer({ opportunities }: OpportunityExplorerProps)
               {typeLabels[item]}
             </button>
           ))}
+        </div>
+
+        <div className="selectFilters">
+          <label>
+            <span>Country</span>
+            <select
+              value={country}
+              onChange={(event) => {
+                setCountry(event.target.value);
+                setCity("all");
+              }}
+            >
+              <option value="all">All countries</option>
+              {countries.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>City</span>
+            <select value={city} onChange={(event) => setCity(event.target.value)}>
+              <option value="all">All cities</option>
+              {cities.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </div>
 

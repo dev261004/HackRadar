@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum OpportunitySourceKey {
+  DEVFOLIO    @map("devfolio")
+  HACKEREARTH @map("hackerearth")
+  UNSTOP      @map("unstop")
+
+  @@map("opportunity_source_key")
+}
+
+enum OpportunityType {
+  HACKATHON        @map("hackathon")
+  CODING_CONTEST   @map("coding-contest")
+  AI_COMPETITION   @map("ai-competition")
+  HIRING_CHALLENGE @map("hiring-challenge")
+  OTHER            @map("other")
+
+  @@map("opportunity_type")
+}
+
+enum OpportunityStatus {
+  UPCOMING @map("upcoming")
+  OPEN     @map("open")
+  ONGOING  @map("ongoing")
+  CLOSED   @map("closed")
+
+  @@map("opportunity_status")
+}
+
+enum OpportunityMode {
+  ONLINE  @map("online")
+  OFFLINE @map("offline")
+  HYBRID  @map("hybrid")
+  UNKNOWN @map("unknown")
+
+  @@map("opportunity_mode")
+}
+
+enum SyncRunStatus {
+  RUNNING @map("running")
+  SUCCESS @map("success")
+  FAILED  @map("failed")
+  PARTIAL @map("partial")
+
+  @@map("sync_run_status")
+}
+
+model OpportunitySource {
+  key         OpportunitySourceKey @id
+  displayName String
+  baseUrl     String?
+  isEnabled   Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  syncRuns SourceSyncRun[]
+
+  @@map("opportunity_sources")
+}
+
+model Opportunity {
+  id          String               @id @default(cuid())
+  sourceKey   OpportunitySourceKey
+  sourceId    String?
+  sourceUrl   String               @unique
+  applyUrl    String?
+
+  title           String
+  slug            String?
+  summary         String? @db.Text
+  description     String? @db.Text
+  descriptionHtml String? @db.Text
+
+  type   OpportunityType   @default(OTHER)
+  status OpportunityStatus @default(UPCOMING)
+
+  organizerName  String?
+  organizerUrl   String?
+  bannerImageUrl String?
+  logoUrl        String?
+
+  registrationStartsAt DateTime?
+  registrationDeadline DateTime?
+  startsAt             DateTime?
+  endsAt               DateTime?
+  closedAt             DateTime?
+  visibleUntil         DateTime?
+
+  mode         OpportunityMode @default(UNKNOWN)
+  locationText String?
+  country      String?
+  city         String?
+
+  tags        String[] @default([])
+  skills      String[] @default([])
+  eligibility String?  @db.Text
+
+  teamSizeMin Int?
+  teamSizeMax Int?
+
+  isFree      Boolean?
+  feeAmount   Decimal? @db.Decimal(12, 2)
+  feeCurrency String?
+
+  prizeAmount   Decimal? @db.Decimal(12, 2)
+  prizeCurrency String?
+  prizeText     String?  @db.Text
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  scrapedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rawSnapshots OpportunityRawSnapshot[]
+
+  @@unique([sourceKey, sourceId])
+  @@index([sourceKey])
+  @@index([type])
+  @@index([status])
+  @@index([mode])
+  @@index([country, city])
+  @@index([registrationDeadline])
+  @@index([startsAt])
+  @@index([closedAt])
+  @@index([visibleUntil])
+  @@map("opportunities")
+}
+
+model SourceSyncRun {
+  id           String               @id @default(cuid())
+  sourceKey    OpportunitySourceKey
+  status       SyncRunStatus        @default(RUNNING)
+  startedAt    DateTime             @default(now())
+  finishedAt   DateTime?
+  fetchedCount Int                  @default(0)
+  createdCount Int                  @default(0)
+  updatedCount Int                  @default(0)
+  skippedCount Int                  @default(0)
+  failedCount  Int                  @default(0)
+  errorMessage String?              @db.Text
+  metadata     Json?
+
+  source       OpportunitySource    @relation(fields: [sourceKey], references: [key])
+  rawSnapshots OpportunityRawSnapshot[]
+
+  @@index([sourceKey, startedAt])
+  @@index([status])
+  @@map("source_sync_runs")
+}
+
+model OpportunityRawSnapshot {
+  id            String               @id @default(cuid())
+  opportunityId String
+  syncRunId     String?
+  sourceKey     OpportunitySourceKey
+  sourceId      String?
+  sourceUrl     String?
+  payload       Json
+  capturedAt    DateTime             @default(now())
+
+  opportunity Opportunity  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  syncRun     SourceSyncRun? @relation(fields: [syncRunId], references: [id], onDelete: SetNull)
+
+  @@index([opportunityId, capturedAt])
+  @@index([sourceKey, sourceId])
+  @@index([syncRunId])
+  @@map("opportunity_raw_snapshots")
+}

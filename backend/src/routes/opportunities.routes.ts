@@ -1,9 +1,13 @@
 import { Router } from "express";
-import { mockOpportunities } from "../data/mockOpportunities.js";
+import { listOpportunities, getOpportunityById } from "../repositories/opportunities.repository.js";
 import {
+  opportunityModes,
   opportunitySources,
+  opportunityStatuses,
   opportunityTypes,
+  type OpportunityMode,
   type OpportunitySource,
+  type OpportunityStatus,
   type OpportunityType
 } from "../types/opportunity.js";
 
@@ -29,50 +33,48 @@ function isOpportunityType(value: string): value is OpportunityType {
   return opportunityTypes.includes(value as OpportunityType);
 }
 
-opportunitiesRouter.get("/", (req, res) => {
+function isOpportunityStatus(value: string): value is OpportunityStatus {
+  return opportunityStatuses.includes(value as OpportunityStatus);
+}
+
+function isOpportunityMode(value: string): value is OpportunityMode {
+  return opportunityModes.includes(value as OpportunityMode);
+}
+
+opportunitiesRouter.get("/", async (req, res) => {
   const source = firstQueryValue(req.query.source);
   const type = firstQueryValue(req.query.type);
+  const status = firstQueryValue(req.query.status);
+  const mode = firstQueryValue(req.query.mode);
+  const country = firstQueryValue(req.query.country)?.trim();
+  const city = firstQueryValue(req.query.city)?.trim();
   const query = firstQueryValue(req.query.q)?.trim().toLowerCase();
 
-  let opportunities = mockOpportunities;
-
-  if (source && isOpportunitySource(source)) {
-    opportunities = opportunities.filter((opportunity) => opportunity.source === source);
-  }
-
-  if (type && isOpportunityType(type)) {
-    opportunities = opportunities.filter((opportunity) => opportunity.type === type);
-  }
-
-  if (query) {
-    opportunities = opportunities.filter((opportunity) => {
-      const searchableText = [
-        opportunity.title,
-        opportunity.organizer,
-        opportunity.location,
-        opportunity.source,
-        opportunity.type,
-        ...opportunity.tags
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return searchableText.includes(query);
-    });
-  }
+  const result = await listOpportunities({
+    q: query,
+    source: source && isOpportunitySource(source) ? source : undefined,
+    type: type && isOpportunityType(type) ? type : undefined,
+    status: status && isOpportunityStatus(status) ? status : undefined,
+    mode: mode && isOpportunityMode(mode) ? mode : undefined,
+    country: country || undefined,
+    city: city || undefined
+  });
 
   res.json({
-    data: opportunities,
+    data: result.data,
     meta: {
-      count: opportunities.length,
+      count: result.data.length,
+      dataSource: result.dataSource,
       sources: opportunitySources,
-      types: opportunityTypes
+      types: opportunityTypes,
+      statuses: opportunityStatuses,
+      modes: opportunityModes
     }
   });
 });
 
-opportunitiesRouter.get("/:id", (req, res) => {
-  const opportunity = mockOpportunities.find((item) => item.id === req.params.id);
+opportunitiesRouter.get("/:id", async (req, res) => {
+  const opportunity = await getOpportunityById(req.params.id);
 
   if (!opportunity) {
     res.status(404).json({
