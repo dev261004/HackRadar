@@ -48,6 +48,8 @@ Run these from the project root.
 | `npm run scraper:install -w backend` | Install Playwright Chromium for scraping. |
 | `npm run sync:devfolio -w backend` | Scrape public Devfolio routes and sync records to PostgreSQL. |
 | `npm run sync:devfolio -w backend -- --limit=1` | Run a small Devfolio test sync. |
+| `npm run sync:hackerearth -w backend` | Scrape public HackerEarth challenge routes and sync records to PostgreSQL. |
+| `npm run sync:hackerearth -w backend -- --limit=1` | Run a small HackerEarth test sync. |
 | `npm run sync:unstop -w backend` | Scrape public Unstop routes and sync records to PostgreSQL. |
 | `npm run sync:unstop -w backend -- --limit=1` | Run a small Unstop test sync. |
 

@@ -220,10 +220,39 @@ Useful Unstop scraper environment variables:
 - `UNSTOP_SCRAPE_LIMIT=25`
 - `UNSTOP_REQUEST_DELAY_MS=750`
 
+## HackerEarth Scraper
+
+Run a HackerEarth sync:
+
+```bash
+npm run sync:hackerearth -w backend
+```
+
+Run a small test sync:
+
+```bash
+npm run sync:hackerearth -w backend -- --limit=1
+```
+
+The scraper uses Playwright, discovers public HackerEarth challenge links, normalizes records into the `Opportunity` table, stores raw page data in `OpportunityRawSnapshot`, and records each run in `SourceSyncRun`.
+
+Current public listing routes used for discovery:
+
+- `https://www.hackerearth.com/challenges/`
+- `https://www.hackerearth.com/challenges/hackathon/`
+- `https://www.hackerearth.com/challenges/competitive/`
+- `https://www.hackerearth.com/challenges/hiring/`
+
+Useful HackerEarth scraper environment variables:
+
+- `HACKEREARTH_HEADLESS=true`
+- `HACKEREARTH_SCRAPE_LIMIT=25`
+- `HACKEREARTH_REQUEST_DELAY_MS=750`
+
 ## Next Implementation Steps
 
-1. Run and inspect the Devfolio and Unstop sync output.
-2. Improve Devfolio and Unstop field extraction based on real scraped records.
-3. Build the source adapter for HackerEarth.
-4. Add ingestion jobs and queue processing.
-5. Add search and filtering improvements.
+1. Run and inspect the Devfolio, Unstop, and HackerEarth sync output.
+2. Improve source field extraction based on real scraped records.
+3. Add scheduled ingestion jobs with BullMQ and Redis.
+4. Add search and filtering improvements.
+5. Add source-quality dashboards for sync runs and extraction gaps.

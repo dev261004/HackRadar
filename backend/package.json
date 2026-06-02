@@ -13,6 +13,7 @@
     "db:validate": "prisma validate",
     "scraper:install": "playwright install chromium",
     "sync:devfolio": "tsx src/scripts/sync-devfolio.ts",
+    "sync:hackerearth": "tsx src/scripts/sync-hackerearth.ts",
     "sync:unstop": "tsx src/scripts/sync-unstop.ts",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
