@@ -16,6 +16,9 @@ const envSchema = z.object({
   DEVFOLIO_HEADLESS: booleanString,
   DEVFOLIO_SCRAPE_LIMIT: z.coerce.number().int().positive().max(100).default(25),
   DEVFOLIO_REQUEST_DELAY_MS: z.coerce.number().int().min(0).max(10000).default(750),
+  UNSTOP_HEADLESS: booleanString,
+  UNSTOP_SCRAPE_LIMIT: z.coerce.number().int().positive().max(100).default(25),
+  UNSTOP_REQUEST_DELAY_MS: z.coerce.number().int().min(0).max(10000).default(750),
   SCRAPER_USER_AGENT: z
     .string()
     .default("HackRadarBot/0.1 (+https://github.com/hackradar; respectful opportunity indexing)")

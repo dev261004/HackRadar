@@ -95,6 +95,8 @@ Default local URLs:
 - Health check: `http://localhost:4000/health`
 - Opportunities API: `http://localhost:4000/api/opportunities`
 
+For the full command reference, see [COMMANDS.md](COMMANDS.md).
+
 ## Environment
 
 Copy the example environment files before running locally:
@@ -187,10 +189,41 @@ Useful scraper environment variables:
 - `DEVFOLIO_REQUEST_DELAY_MS=750`
 - `SCRAPER_USER_AGENT=HackRadarBot/0.1 (+https://github.com/hackradar; respectful opportunity indexing)`
 
+## Unstop Scraper
+
+Run an Unstop sync:
+
+```bash
+npm run sync:unstop -w backend
+```
+
+Run a small test sync:
+
+```bash
+npm run sync:unstop -w backend -- --limit=1
+```
+
+The scraper uses Playwright, discovers public Unstop opportunity links from competition and hackathon listing surfaces, reads AMP detail pages where available, normalizes records into the `Opportunity` table, stores raw page data in `OpportunityRawSnapshot`, and records each run in `SourceSyncRun`.
+
+Current public listing routes used for discovery:
+
+- `https://unstop.com/compete/amp`
+- `https://unstop.com/hackathons/amp`
+- `https://unstop.com/competitions/amp`
+- `https://unstop.com/competitions-challenges`
+- `https://unstop.com/hackathons`
+- `https://unstop.com/competitions`
+
+Useful Unstop scraper environment variables:
+
+- `UNSTOP_HEADLESS=true`
+- `UNSTOP_SCRAPE_LIMIT=25`
+- `UNSTOP_REQUEST_DELAY_MS=750`
+
 ## Next Implementation Steps
 
-1. Run and inspect the Devfolio sync output.
-2. Improve Devfolio field extraction based on real scraped records.
-3. Build source adapters for HackerEarth and Unstop.
+1. Run and inspect the Devfolio and Unstop sync output.
+2. Improve Devfolio and Unstop field extraction based on real scraped records.
+3. Build the source adapter for HackerEarth.
 4. Add ingestion jobs and queue processing.
 5. Add search and filtering improvements.
