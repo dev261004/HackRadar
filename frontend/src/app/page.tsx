@@ -1,9 +1,6 @@
 import { OpportunityExplorer } from "@/components/opportunity-explorer";
-import { getOpportunities } from "@/lib/api";
 
-export default async function Home() {
-  const opportunities = await getOpportunities();
-
+export default function Home() {
   return (
     <main>
       <header className="appHeader">
@@ -18,7 +15,7 @@ export default async function Home() {
         </div>
       </header>
 
-      <OpportunityExplorer opportunities={opportunities} />
+      <OpportunityExplorer />
     </main>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getOpportunitiesFeed, type OpportunitiesDataSource } from "@/lib/api";
 import {
   opportunitySources,
   opportunityTypes,
@@ -11,10 +12,11 @@ import {
 
 type SourceFilter = "all" | OpportunitySource;
 type TypeFilter = "all" | OpportunityType;
+type QuickView = "all" | "recent" | "closing";
+type SortMode = "deadline-asc" | "deadline-desc" | "recent" | "updated";
 
-interface OpportunityExplorerProps {
-  opportunities: Opportunity[];
-}
+const recentWindowMs = 14 * 24 * 60 * 60 * 1000;
+const closingWindowMs = 14 * 24 * 60 * 60 * 1000;
 
 const sourceLabels: Record<SourceFilter, string> = {
   all: "All sources",
@@ -32,7 +34,19 @@ const typeLabels: Record<TypeFilter, string> = {
   other: "Other"
 };
 
-function formatDate(value: string | null) {
+const quickViewLabels: Record<QuickView, string> = {
+  all: "All",
+  recent: "Recently added",
+  closing: "Closing soon"
+};
+
+const dataSourceLabels: Record<OpportunitiesDataSource, string> = {
+  database: "Database data",
+  mock: "Mock data",
+  fallback: "Local fallback"
+};
+
+function formatDate(value: string | null | undefined) {
   if (!value) {
     return "Not listed";
   }
@@ -51,12 +65,113 @@ function normalizeLabel(value: string) {
     .join(" ");
 }
 
-export function OpportunityExplorer({ opportunities }: OpportunityExplorerProps) {
+function timeValue(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function recentAddedTime(opportunity: Opportunity) {
+  return timeValue(opportunity.createdAt) ?? timeValue(opportunity.firstSeenAt) ?? timeValue(opportunity.updatedAt);
+}
+
+function isRecentlyAdded(opportunity: Opportunity, now: number) {
+  const addedAt = recentAddedTime(opportunity);
+  return addedAt !== null && addedAt <= now && now - addedAt <= recentWindowMs;
+}
+
+function isClosingSoon(opportunity: Opportunity, now: number) {
+  const deadline = timeValue(opportunity.registrationDeadline);
+  return deadline !== null && deadline >= now && deadline - now <= closingWindowMs;
+}
+
+function matchesSearch(opportunity: Opportunity, query: string) {
+  if (query.length === 0) {
+    return true;
+  }
+
+  return [
+    opportunity.title,
+    opportunity.summary,
+    opportunity.description,
+    opportunity.organizer,
+    opportunity.organizerName,
+    opportunity.location,
+    opportunity.locationText,
+    opportunity.country,
+    opportunity.city,
+    opportunity.source,
+    opportunity.type,
+    ...opportunity.tags,
+    ...(opportunity.skills ?? [])
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(query);
+}
+
+function sortOpportunities(opportunities: Opportunity[], sortMode: SortMode) {
+  return [...opportunities].sort((left, right) => {
+    if (sortMode === "recent") {
+      return (recentAddedTime(right) ?? 0) - (recentAddedTime(left) ?? 0);
+    }
+
+    if (sortMode === "updated") {
+      return (timeValue(right.updatedAt) ?? 0) - (timeValue(left.updatedAt) ?? 0);
+    }
+
+    const leftDeadline = timeValue(left.registrationDeadline);
+    const rightDeadline = timeValue(right.registrationDeadline);
+    const missingDeadline = sortMode === "deadline-asc" ? Number.POSITIVE_INFINITY : 0;
+
+    return sortMode === "deadline-asc"
+      ? (leftDeadline ?? missingDeadline) - (rightDeadline ?? missingDeadline)
+      : (rightDeadline ?? missingDeadline) - (leftDeadline ?? missingDeadline);
+  });
+}
+
+export function OpportunityExplorer() {
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [dataSource, setDataSource] = useState<OpportunitiesDataSource>("fallback");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [source, setSource] = useState<SourceFilter>("all");
   const [type, setType] = useState<TypeFilter>("all");
   const [country, setCountry] = useState("all");
   const [city, setCity] = useState("all");
+  const [quickView, setQuickView] = useState<QuickView>("all");
+  const [sortMode, setSortMode] = useState<SortMode>("deadline-asc");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadOpportunities() {
+      setIsLoading(true);
+      const feed = await getOpportunitiesFeed();
+
+      if (!isMounted) {
+        return;
+      }
+
+      setOpportunities(feed.data);
+      setDataSource(feed.meta.dataSource);
+      setLoadError(feed.meta.error ?? null);
+      setIsLoading(false);
+    }
+
+    void loadOpportunities();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const now = useMemo(() => Date.now(), [opportunities]);
 
   const countries = useMemo(() => {
     return Array.from(
@@ -75,33 +190,54 @@ export function OpportunityExplorer({ opportunities }: OpportunityExplorerProps)
     ).sort((a, b) => a.localeCompare(b));
   }, [opportunities, country]);
 
-  const filteredOpportunities = useMemo(() => {
+  const viewFilteredOpportunities = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
     return opportunities.filter((opportunity) => {
-      const matchesSource = source === "all" || opportunity.source === source;
       const matchesType = type === "all" || opportunity.type === type;
       const matchesCountry = country === "all" || opportunity.country === country;
       const matchesCity = city === "all" || opportunity.city === city;
-      const matchesQuery =
-        normalizedQuery.length === 0 ||
-        [
-          opportunity.title,
-          opportunity.organizer,
-          opportunity.location,
-          opportunity.country,
-          opportunity.city,
-          opportunity.source,
-          opportunity.type,
-          ...opportunity.tags
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(normalizedQuery);
+      const matchesQuickView =
+        quickView === "all" ||
+        (quickView === "recent" && isRecentlyAdded(opportunity, now)) ||
+        (quickView === "closing" && isClosingSoon(opportunity, now));
 
-      return matchesSource && matchesType && matchesCountry && matchesCity && matchesQuery;
+      return (
+        matchesType &&
+        matchesCountry &&
+        matchesCity &&
+        matchesQuickView &&
+        matchesSearch(opportunity, normalizedQuery)
+      );
     });
-  }, [opportunities, query, source, type, country, city]);
+  }, [opportunities, query, type, country, city, quickView, now]);
+
+  const sourceCounts = useMemo(() => {
+    const counts: Record<SourceFilter, number> = {
+      all: viewFilteredOpportunities.length,
+      devfolio: 0,
+      hackerearth: 0,
+      unstop: 0
+    };
+
+    for (const opportunity of viewFilteredOpportunities) {
+      counts[opportunity.source] += 1;
+    }
+
+    return counts;
+  }, [viewFilteredOpportunities]);
+
+  const filteredOpportunities = useMemo(() => {
+    const filtered =
+      source === "all"
+        ? viewFilteredOpportunities
+        : viewFilteredOpportunities.filter((opportunity) => opportunity.source === source);
+
+    return sortOpportunities(filtered, sortMode);
+  }, [viewFilteredOpportunities, source, sortMode]);
+
+  const hasNoLoadedData = !isLoading && opportunities.length === 0;
+  const hasNoMatches = !isLoading && opportunities.length > 0 && filteredOpportunities.length === 0;
 
   return (
     <section className="explorer" aria-label="Opportunity discovery">
@@ -117,7 +253,30 @@ export function OpportunityExplorer({ opportunities }: OpportunityExplorerProps)
           />
         </div>
 
-        <div className="filterGroup" aria-label="Source filter">
+        <div className="filterGroup viewFilter" aria-label="View filter">
+          {(Object.keys(quickViewLabels) as QuickView[]).map((item) => (
+            <button
+              className={quickView === item ? "active" : ""}
+              key={item}
+              type="button"
+              onClick={() => {
+                setQuickView(item);
+
+                if (item === "recent") {
+                  setSortMode("recent");
+                }
+
+                if (item === "closing") {
+                  setSortMode("deadline-asc");
+                }
+              }}
+            >
+              {quickViewLabels[item]}
+            </button>
+          ))}
+        </div>
+
+        <div className="filterGroup sourceFilter" aria-label="Source filter">
           {(["all", ...opportunitySources] as SourceFilter[]).map((item) => (
             <button
               className={source === item ? "active" : ""}
@@ -125,12 +284,13 @@ export function OpportunityExplorer({ opportunities }: OpportunityExplorerProps)
               type="button"
               onClick={() => setSource(item)}
             >
-              {sourceLabels[item]}
+              <span>{sourceLabels[item]}</span>
+              <strong>{sourceCounts[item]}</strong>
             </button>
           ))}
         </div>
 
-        <div className="filterGroup" aria-label="Type filter">
+        <div className="filterGroup typeFilter" aria-label="Type filter">
           {(["all", ...opportunityTypes] as TypeFilter[]).map((item) => (
             <button
               className={type === item ? "active" : ""}
@@ -143,7 +303,7 @@ export function OpportunityExplorer({ opportunities }: OpportunityExplorerProps)
           ))}
         </div>
 
-        <div className="selectFilters">
+        <div className="selectFilters utilityFilters">
           <label>
             <span>Country</span>
             <select
@@ -173,51 +333,100 @@ export function OpportunityExplorer({ opportunities }: OpportunityExplorerProps)
               ))}
             </select>
           </label>
+
+          <label>
+            <span>Sort</span>
+            <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}>
+              <option value="deadline-asc">Deadline first</option>
+              <option value="deadline-desc">Deadline latest</option>
+              <option value="recent">Recently added</option>
+              <option value="updated">Recently updated</option>
+            </select>
+          </label>
         </div>
       </div>
 
-      <div className="resultMeta">
-        <strong>{filteredOpportunities.length}</strong>
-        <span>opportunities</span>
+      <div className="resultBar">
+        <div className="resultMeta">
+          <strong>{isLoading ? "..." : filteredOpportunities.length}</strong>
+          <span>opportunities</span>
+        </div>
+        <span className={`dataBadge ${dataSource}`}>{isLoading ? "Loading data" : dataSourceLabels[dataSource]}</span>
       </div>
 
-      <div className="opportunityGrid">
-        {filteredOpportunities.map((opportunity) => (
-          <article className="opportunityCard" key={opportunity.id}>
-            <div className="cardTopline">
-              <span>{sourceLabels[opportunity.source]}</span>
-              <span className={`status ${opportunity.status}`}>{normalizeLabel(opportunity.status)}</span>
+      {loadError ? <p className="fallbackNotice">Backend data was not available. Showing fallback records.</p> : null}
+
+      {isLoading ? (
+        <div className="loadingGrid" aria-label="Loading opportunities">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div className="skeletonCard" key={index}>
+              <span />
+              <strong />
+              <p />
+              <p />
+              <em />
             </div>
-            <h2>{opportunity.title}</h2>
-            <div className="cardFacts">
-              <span>{normalizeLabel(opportunity.type)}</span>
-              <span>{opportunity.isOnline ? "Online" : opportunity.location}</span>
-            </div>
-            <dl>
-              <div>
-                <dt>Organizer</dt>
-                <dd>{opportunity.organizer}</dd>
+          ))}
+        </div>
+      ) : null}
+
+      {hasNoLoadedData ? (
+        <div className="emptyState">
+          <h2>No opportunities loaded yet</h2>
+          <p>Run a source sync or check the backend connection, then refresh this page.</p>
+        </div>
+      ) : null}
+
+      {hasNoMatches ? (
+        <div className="emptyState">
+          <h2>No matches found</h2>
+          <p>Try a different source, type, location, or search term.</p>
+        </div>
+      ) : null}
+
+      {!isLoading && filteredOpportunities.length > 0 ? (
+        <div className="opportunityGrid">
+          {filteredOpportunities.map((opportunity) => (
+            <article className="opportunityCard" key={opportunity.id}>
+              <div className="cardTopline">
+                <span>{sourceLabels[opportunity.source]}</span>
+                <span className={`status ${opportunity.status}`}>{normalizeLabel(opportunity.status)}</span>
               </div>
-              <div>
-                <dt>Deadline</dt>
-                <dd>{formatDate(opportunity.registrationDeadline)}</dd>
+              <h2>{opportunity.title}</h2>
+              <div className="cardFacts">
+                <span>{normalizeLabel(opportunity.type)}</span>
+                <span>{opportunity.isOnline ? "Online" : opportunity.location}</span>
               </div>
-              <div>
-                <dt>Starts</dt>
-                <dd>{formatDate(opportunity.startsAt)}</dd>
+              <dl>
+                <div>
+                  <dt>Organizer</dt>
+                  <dd>{opportunity.organizer}</dd>
+                </div>
+                <div>
+                  <dt>Deadline</dt>
+                  <dd>{formatDate(opportunity.registrationDeadline)}</dd>
+                </div>
+                <div>
+                  <dt>Starts</dt>
+                  <dd>{formatDate(opportunity.startsAt)}</dd>
+                </div>
+                <div>
+                  <dt>Added</dt>
+                  <dd>{formatDate(opportunity.createdAt)}</dd>
+                </div>
+              </dl>
+              <div className="tagList">
+                {opportunity.tags.map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
               </div>
-            </dl>
-            <div className="tagList">
-              {opportunity.tags.map((tag) => (
-                <span key={tag}>{tag}</span>
-              ))}
-            </div>
-            <a href={opportunity.url} rel="noreferrer" target="_blank">
-              View opportunity
-            </a>
-          </article>
-        ))}
-      </div>
+              <a href={opportunity.url} rel="noreferrer" target="_blank">
+                View opportunity
+              </a>
+            </article>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

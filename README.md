@@ -132,6 +132,12 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/hackradar?schema=publ
 
 Replace the username, password, port, and database name to match your machine.
 
+For frontend browser requests, keep `NEXT_PUBLIC_BACKEND_API_URL` in `frontend/.env.local` pointed at the backend API, for example:
+
+```env
+NEXT_PUBLIC_BACKEND_API_URL=http://localhost:4000
+```
+
 ## Database
 
 The backend uses Prisma for schema management. The first schema includes:
