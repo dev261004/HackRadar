@@ -3,6 +3,7 @@ import express from "express";
 import { env } from "./config/env.js";
 import { healthRouter } from "./routes/health.routes.js";
 import { opportunitiesRouter } from "./routes/opportunities.routes.js";
+import { sourcesRouter } from "./routes/sources.routes.js";
 import { sourceRegistry } from "./sources/registry.js";
 
 function getCorsOrigin() {
@@ -34,6 +35,7 @@ export function createApp() {
 
   app.use("/health", healthRouter);
   app.use("/api/opportunities", opportunitiesRouter);
+  app.use("/api/sources", sourcesRouter);
 
   app.use((req, res) => {
     res.status(404).json({

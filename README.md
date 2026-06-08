@@ -94,8 +94,17 @@ Default local URLs:
 - Backend: `http://localhost:4000`
 - Health check: `http://localhost:4000/health`
 - Opportunities API: `http://localhost:4000/api/opportunities`
+- Sources API: `http://localhost:4000/api/sources`
 
 For the full command reference, see [COMMANDS.md](COMMANDS.md).
+
+## Backend APIs
+
+- `GET /api/opportunities` lists public opportunities with optional filters.
+- `GET /api/opportunities/:id` returns one public opportunity.
+- `GET /api/sources` lists Devfolio, HackerEarth, and Unstop source status.
+- `GET /api/sources/sync-runs` lists recent scraper/API sync runs. Optional filters: `source`, `status`, `limit`.
+- `GET /api/sources/sync-runs/:id` returns one sync run with metadata and raw snapshot count.
 
 ## Environment
 
@@ -248,6 +257,22 @@ Useful HackerEarth scraper environment variables:
 - `HACKEREARTH_HEADLESS=true`
 - `HACKEREARTH_SCRAPE_LIMIT=25`
 - `HACKEREARTH_REQUEST_DELAY_MS=750`
+
+## All Scrapers
+
+Run all current source scrapers sequentially:
+
+```bash
+npm run sync:all -w backend
+```
+
+Run a small test sync for every source:
+
+```bash
+npm run sync:all -w backend -- --limit=1
+```
+
+The command runs Devfolio, Unstop, and HackerEarth. It keeps going if one source fails, prints a combined summary, and exits with a non-zero code if any source fails or completes with partial issues.
 
 ## Next Implementation Steps
 

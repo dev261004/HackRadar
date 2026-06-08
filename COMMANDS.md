@@ -52,6 +52,8 @@ Run these from the project root.
 | `npm run sync:hackerearth -w backend -- --limit=1` | Run a small HackerEarth test sync. |
 | `npm run sync:unstop -w backend` | Scrape public Unstop routes and sync records to PostgreSQL. |
 | `npm run sync:unstop -w backend -- --limit=1` | Run a small Unstop test sync. |
+| `npm run sync:all -w backend` | Run Devfolio, Unstop, and HackerEarth syncs sequentially. |
+| `npm run sync:all -w backend -- --limit=1` | Run a small all-source test sync. |
 
 ## Frontend Commands
 
